@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Интерактивна карта – Гоце Делчев</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+    <!-- Локален CSS -->
+    <link rel="stylesheet" href="map.css">
+</head>
+<body>
+    <header>
+        <h1 class="site-title">Интерактивна галерия – гр. Гоце Делчев</h1>
+        <nav class="main-nav">
+            <ul class="nav-list">
+                <li><a href="index.html">Начало</a></li>
+                <li><a href="history.html">История</a></li>
+                <li><a href="sights.html">Забележителности</a></li>
+                <li><a href="gallery.html">Галерия</a></li>
+                <li><a href="quiz.html">Куиз</a></li>
+                <li><a href="map.html" class="active-link">Карта</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <h2>Кликнете върху маркерите за повече информация на представените забележителности на града.</h2>
+        <div id="map"></div>
+    </main>
+
+    <footer>
+<center><p class="copyright-line">&copy; 2025 Интерактивна галерия – гр. Гоце Делчев | Ивана Петрова Темелкова</p> </center>  </footer>
+    </footer>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+        // Инициализация на картата
+        const map = L.map('map').setView([41.5735, 23.7307], 14);
+
+        // OpenStreetMap плочка
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Забележителности със снимки и описание
+        const sights = [
+          {
+            name: "Общински исторически музей",
+            coords: [41.572908, 23.726737],
+            img: "images/museum.jpg",
+            desc: "Общински исторически музей – ул. Христо Ботев 26, Гоце Делчев."
+          },
+          {
+            name: "Паметник на Гоце Делчев",
+            coords: [41.573513, 23.728272],
+            img: "images/monument.jpg",
+            desc: "Паметник на революционера Гоце Делчев в центъра на града."
+          },
+          {
+            name: "Градски парк",
+            coords: [41.570277, 23.735000],
+            img: "images/park.jpg",
+            desc: "Градски парк на Гоце Делчев – зелена зона, отдих и природа."
+          }
+        ];
+
+        // Добавяне на маркери с popup
+        sights.forEach(sight => {
+            const popupContent = `
+                <div class="popup-content">
+                    <h3>${sight.name}</h3>
+                    <img src="${sight.img}" alt="${sight.name}">
+                    <p>${sight.desc}</p>
+                </div>
+            `;
+            L.marker(sight.coords).addTo(map).bindPopup(popupContent);
+        });
+    </script>
+</body>
+</html>

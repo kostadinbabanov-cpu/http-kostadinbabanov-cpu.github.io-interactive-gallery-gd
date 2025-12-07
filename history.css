@@ -1,0 +1,100 @@
+/* -----------------------------------------
+   Общи стилове (съвместими с index.css)
+-----------------------------------------*/
+body {
+    background-color: #f7f7f7;
+    font-family: 'Roboto', sans-serif;
+    color: #333;
+    line-height: 1.7;
+    padding-top: 0;
+}
+
+/* -----------------------------------------
+   Основно съдържание
+-----------------------------------------*/
+main {
+    max-width: 900px;
+    margin: 40px auto;
+    padding: 0 20px;
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+}
+
+h2 {
+    text-align: center;
+    margin-bottom: 25px;
+    font-family: 'Merriweather', serif;
+    font-size: 2rem;
+    color: #234a7c;
+}
+
+section {
+    margin-bottom: 35px;
+}
+
+section p {
+    text-align: justify;
+    margin-bottom: 18px;
+    font-size: 1.05rem;
+}
+
+/* -----------------------------------------
+   Стил за първия параграф (интро ефект)
+-----------------------------------------*/
+section p:first-of-type {
+    font-size: 1.15rem;
+    background: #edf2ff;
+    padding: 15px 18px;
+    border-left: 5px solid #234a7c;
+    border-radius: 8px;
+}
+
+/* -----------------------------------------
+   Добавяме леко изскачане при hover
+-----------------------------------------*/
+main p:hover {
+    background: #f2f6ff;
+    transition: 0.3s;
+    border-radius: 8px;
+    padding-left: 10px;
+}
+
+/* -----------------------------------------
+   Footer
+-----------------------------------------*/
+footer {
+    background: #234a7c;
+    color: white;
+    text-align: center;
+    padding: 25px 0;
+    margin-top: 40px;
+    font-size: 0.95rem;
+    letter-spacing: 0.5px;
+}
+
+footer p {
+    margin: 0;
+}
+
+/* -----------------------------------------
+   Responsive (мобилни устройства)
+-----------------------------------------*/
+@media (max-width: 768px) {
+    main {
+        margin: 20px 10px;
+        padding: 15px;
+    }
+
+    h2 {
+        font-size: 1.7rem;
+    }
+
+    section p {
+        font-size: 1rem;
+    }
+
+    section p:first-of-type {
+        font-size: 1.1rem;
+    }
+}

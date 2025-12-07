@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Куиз – Гоце Делчев</title>
+  <link rel="stylesheet" href="quiz.css" />
+</head>
+<body>
+  <header class="site-header">
+    <h1>Интерактивна галерия – гр. Гоце Делчев</h1>
+    <nav class="main-nav">
+      <a href="index.html">Начало</a>
+      <a href="history.html">История</a>
+      <a href="sights.html">Забележителности</a>
+      <a href="gallery.html">Галерия</a>
+      <a class="active" href="quiz.html">Куиз</a>
+      <a href="map.html">Карта</a>
+    
+    </nav>
+  </header>
+
+  <main class="container">
+    <section id="game" class="card">
+      <div class="top-bar">
+        <div id="progress">Въпрос <span id="currentIdx">0</span> / <span id="totalQ">0</span></div>
+        <div id="score">Точки: <span id="scoreVal">0</span></div>
+      </div>
+
+      <div id="questionBox" class="question-box">
+        <div id="questionText" class="question-text">Натисни "Старт", за да започнеш куиза.</div>
+
+        <div id="answers" class="answers-grid">
+          <button class="answer-btn" id="ans0" data-index="0"></button>
+          <button class="answer-btn" id="ans1" data-index="1"></button>
+          <button class="answer-btn" id="ans2" data-index="2"></button>
+          <button class="answer-btn" id="ans3" data-index="3"></button>
+        </div>
+
+        <div class="controls">
+          <button id="startBtn" class="primary">Старт</button>
+          <button id="nextBtn" class="primary" style="display:none">Следващ</button>
+          <button id="restartBtn" class="secondary" style="display:none">Рестарт</button>
+        </div>
+      </div>
+    </section>
+
+    <aside id="rightColumn" class="card sidebar">
+      <h3>Панел</h3>
+      <p id="hint">Подсказките са изключени в този режим.</p>
+      <div class="small-controls">
+        <label>Случайни въпроси <input type="checkbox" id="shuffleQ"></label>
+        <label>Брой въпроси <input type="number" id="limitQ" min="1" value="10" style="width:80px"></label>
+      </div>
+
+      <div class="audio-controls">
+        <p><strong>Звук</strong></p>
+        <button id="muteBtn" class="secondary">Изключи звук</button>
+      </div>
+
+      <hr>
+
+      <button id="openAdmin" class="tertiary">Админ: Управление на въпроси</button>
+    </aside>
+  </main>
+
+  <!-- Админ модал -->
+  <div id="adminModal" class="modal" aria-hidden="true">
+    <div class="modal-content">
+      <h2>Администратор — управление на въпроси</h2>
+      <p>Парола: <input id="adminPass" type="password" placeholder="Въведи парола"> <button id="adminLoginBtn">Влез</button></p>
+      <div id="adminArea" style="display:none">
+        <div class="admin-forms">
+          <h3>Добави нов въпрос</h3>
+          <label>Въпрос<textarea id="newQ" rows="2"></textarea></label>
+          <label>Отговор A<input id="newA0"></label>
+          <label>Отговор B<input id="newA1"></label>
+          <label>Отговор C<input id="newA2"></label>
+          <label>Отговор D<input id="newA3"></label>
+          <label>Правилен индекс (0-3)<input id="newCorrect" type="number" min="0" max="3" value="0"></label>
+          <button id="addQBtn" class="primary">Добави въпрос</button>
+        </div>
+
+        <hr>
+        <h3>Съществуващи въпроси</h3>
+        <div id="questionsList"></div>
+
+        <hr>
+        <h3>Импорт / Експорт</h3>
+        <p><button id="exportBtn" class="secondary">Експорт (JSON)</button> <input id="importFile" type="file" accept=".json"> <button id="importBtn" class="secondary">Импорт</button></p>
+
+        <p style="margin-top:10px"><button id="closeAdmin" class="secondary">Затвори</button></p>
+      </div>
+      <button id="closeModalBtn" class="tertiary">Затвори прозореца</button>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+<center><p class="copyright-line">&copy; 2025 Интерактивна галерия – гр. Гоце Делчев | Ивана Петрова Темелкова</p> </center>  </footer>
+
+<!-- Аудио (постави файловете в папката или премахни елементите ако нямаш) -->
+<audio id="bgMusic" src="audio/background.mp3" loop preload="none"></audio>
+<audio id="soundCorrect" src="audio/correct.mp3" preload="none"></audio>
+<audio id="soundWrong" src="audio/wrong.mp3" preload="none"></audio>
+
+  <script src="quiz.js"></script>
+</body>
+</html>

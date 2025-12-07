@@ -1,0 +1,154 @@
+/* -----------------------------------------
+   Глобални стилове – съответстват на index.css
+-----------------------------------------*/
+body {
+    background-color: #f7f7f7;
+    font-family: 'Roboto', sans-serif;
+    color: #333;
+    margin: 0;
+}
+
+/* -----------------------------------------
+   Header
+-----------------------------------------*/
+header {
+    background: #234a7c;
+    padding: 25px 0;
+    text-align: center;
+    color: white;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+header h1 {
+    font-family: 'Merriweather', serif;
+    margin: 0;
+    font-size: 2.2rem;
+}
+
+nav ul {
+    list-style: none;
+    padding: 0;
+    margin-top: 15px;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 18px;
+}
+
+nav ul li a {
+    color: #ffffff;
+    text-decoration: none;
+    font-size: 1rem;
+    padding: 8px 14px;
+    border-radius: 8px;
+    transition: 0.3s;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+nav ul li a:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* -----------------------------------------
+   Основно съдържание
+-----------------------------------------*/
+main {
+    max-width: 1000px;
+    margin: 40px auto;
+    padding: 0 20px;
+}
+
+/* -----------------------------------------
+   Карта за всяка забележителност
+-----------------------------------------*/
+.sight {
+    background: #ffffff;
+    padding: 25px;
+    margin-bottom: 35px;
+    border-radius: 18px;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+    transition: 0.3s;
+}
+
+.sight:hover {
+    transform: scale(1.01);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.20);
+}
+
+.sight h2 {
+    font-family: 'Merriweather', serif;
+    font-size: 1.9rem;
+    margin-bottom: 15px;
+    color: #234a7c;
+    text-align: center;
+}
+
+/* -----------------------------------------
+   Снимки – увеличават се при hover
+-----------------------------------------*/
+.sight img {
+    width: 100%;
+    border-radius: 14px;
+    margin: 10px 0 15px;
+    transition: transform 0.4s ease, box-shadow 0.4s ease;
+}
+
+.sight img:hover {
+    transform: scale(1.03);
+    box-shadow: 0 8px 18px rgba(0,0,0,0.25);
+}
+
+/* -----------------------------------------
+   Текст
+-----------------------------------------*/
+.sight p {
+    font-size: 1.05rem;
+    line-height: 1.7;
+    text-align: justify;
+}
+
+/* -----------------------------------------
+   Аудио плейър
+-----------------------------------------*/
+audio {
+    display: block;
+    margin: 15px auto 0;
+    width: 100%;
+}
+
+/* -----------------------------------------
+   Footer
+-----------------------------------------*/
+footer {
+    background: #234a7c;
+    color: white;
+    text-align: center;
+    padding: 25px 0;
+    margin-top: 40px;
+    font-size: 0.95rem;
+}
+
+/* -----------------------------------------
+   Responsive
+-----------------------------------------*/
+@media (max-width: 768px) {
+    header h1 {
+        font-size: 1.8rem;
+    }
+
+    nav ul li a {
+        font-size: 0.95rem;
+    }
+
+    .sight {
+        padding: 20px;
+    }
+
+    .sight h2 {
+        font-size: 1.6rem;
+    }
+
+    .sight p {
+        font-size: 1rem;
+    }
+}

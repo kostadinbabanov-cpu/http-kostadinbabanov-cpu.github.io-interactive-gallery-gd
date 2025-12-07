@@ -1,0 +1,151 @@
+/* ------------------------------
+   Общи настройки
+--------------------------------*/
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Roboto', sans-serif;
+    background-color: #f7f7f7;
+    color: #333;
+    line-height: 1.6;
+}
+
+/* ------------------------------
+   Хедър и навигация
+--------------------------------*/
+header {
+    background: #234a7c;
+    color: white;
+    padding: 20px 0;
+    text-align: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+header h1 {
+    font-family: 'Merriweather', serif;
+    font-size: 2rem;
+}
+
+.main-nav ul {
+    list-style: none;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.main-nav ul li a,
+.main-nav ul li button {
+    color: white;
+    text-decoration: none;
+    font-weight: bold;
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: background 0.3s;
+    border: none;
+    background: none;
+    cursor: pointer;
+}
+
+.main-nav ul li a:hover,
+.main-nav ul li button:hover {
+    background: rgba(255,255,255,0.3);
+}
+
+.main-nav ul li a.active-link {
+    background: rgba(255,255,255,0.35);
+}
+
+/* ------------------------------
+   Основно съдържание
+--------------------------------*/
+main {
+    max-width: 1000px;
+    margin: 40px auto;
+    padding: 0 20px;
+    text-align: center;
+}
+
+main h2 {
+    font-family: 'Merriweather', serif;
+    font-size: 1.8rem;
+    color: #234a7c;
+    margin-bottom: 20px;
+}
+
+/* ------------------------------
+   Карта
+--------------------------------*/
+#map {
+    height: 600px;
+    width: 90%;
+    margin: 0 auto 40px auto;
+    border: 3px solid #234a7c;
+    border-radius: 15px;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+}
+
+/* Leaflet popup съдържание */
+.popup-content {
+    text-align: center;
+}
+
+.popup-content h3 {
+    font-family: 'Merriweather', serif;
+    color: #234a7c;
+    margin-bottom: 8px;
+    font-size: 1.1rem;
+}
+
+.popup-content img {
+    width: 150px;
+    height: auto;
+    margin: 5px auto;
+    border-radius: 8px;
+    display: block;
+}
+
+.popup-content p {
+    font-size: 0.95rem;
+    margin-top: 5px;
+    color: #333;
+}
+
+/* ------------------------------
+   Футър
+--------------------------------*/
+footer {
+    background: #234a7c;
+    color: white;
+    text-align: center;
+    padding: 25px 0;
+    font-size: 0.95rem;
+    margin-top: 40px;
+}
+
+/* ------------------------------
+   Responsive дизайн
+--------------------------------*/
+@media (max-width: 768px) {
+    header h1 {
+        font-size: 1.6rem;
+    }
+
+    main h2 {
+        font-size: 1.4rem;
+    }
+
+    #map {
+        width: 95%;
+        height: 500px;
+    }
+
+    .popup-content img {
+        width: 120px;
+    }
+}
