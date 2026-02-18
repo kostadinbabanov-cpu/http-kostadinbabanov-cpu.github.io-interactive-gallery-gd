@@ -14,7 +14,6 @@ const db = firebase.database();
 
 // ====== ПРОМЕНЛИВИ ======
 const adminPassword = "ivana123";
-const STORAGE_KEY = "gd_quiz_questions_v1";
 const TERRITORIES = [
     { name: "Градски парк", points: 100, owner: null },
     { name: "Панорама", points: 150, owner: null },
@@ -24,10 +23,10 @@ const TERRITORIES = [
     { name: "Център", points: 180, owner: null }
 ];
 
-let questions = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+let questions = []; // Ще се зареждат от Firebase
 let roomID = new URLSearchParams(window.location.search).get('room');
 let myRole = roomID ? 'player2' : 'player1';
-let currentTIdx = -1; // Започваме от -1 за по-добра синхронизация
+let currentTIdx = -1;
 let currentQIndex = -1;
 let myScore = 0, oppScore = 0;
 let myZones = 0, oppZones = 0;
@@ -41,23 +40,40 @@ const setupContainer = document.getElementById("setup-container");
 const createRoomBtn = document.getElementById("createRoomBtn");
 const territoryStatus = document.getElementById("territoryStatus");
 
-// ====== ИНИЦИАЛИЗАЦИЯ ======
+// ====== ЗАРЕЖДАНЕ НА ВЪПРОСИ ОТ FIREBASE ======
 
-if (roomID) {
-    console.log("Влизане като Player 2 в стая:", roomID);
-    setupContainer.innerHTML = "<h3>Свързване към играта...</h3>";
-    // Казваме на базата данни, че Player 2 е тук
-    db.ref('rooms/' + roomID).update({ status: 'playing' });
-    initGame();
+function loadQuestionsFromDB(callback) {
+    db.ref('shared_questions').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            questions = Object.values(data);
+            console.log("Заредени въпроси:", questions.length);
+        }
+        if (callback) callback();
+    });
 }
 
+// ====== ИНИЦИАЛИЗАЦИЯ ======
+
+loadQuestionsFromDB(() => {
+    if (roomID) {
+        setupContainer.innerHTML = "<h3>Свързване към облака...</h3>";
+        db.ref('rooms/' + roomID).update({ status: 'playing' });
+        initGame();
+    }
+});
+
 createRoomBtn.onclick = () => {
+    if (questions.length === 0) {
+        alert("Първо добавете въпроси от Админ панела!");
+        return;
+    }
     roomID = "room_" + Math.random().toString(36).substr(2, 6);
     const url = window.location.href + "?room=" + roomID;
     
     document.getElementById("qrcode").innerHTML = "";
     new QRCode(document.getElementById("qrcode"), url);
-    document.getElementById("setup-msg").innerHTML = `<b>Стаята е създадена!</b><br>Сканирайте QR кода с втория телефон.`;
+    document.getElementById("setup-msg").innerHTML = `<b>Стаята е създадена!</b><br>Сканирайте QR кода.`;
     createRoomBtn.style.display = "none";
 
     db.ref('rooms/' + roomID).set({
@@ -65,8 +81,7 @@ createRoomBtn.onclick = () => {
         currentTIdx: -1,
         currentQIdx: -1,
         p1Ready: false, p2Ready: false,
-        p1Correct: false, p2Correct: false,
-        p1Time: 999, p2Time: 999
+        p1Correct: false, p2Correct: false
     });
 
     db.ref('rooms/' + roomID + '/status').on('value', (snap) => {
@@ -84,7 +99,7 @@ function initGame() {
     listenForUpdates();
 }
 
-// ====== ЛОГИКА НА БИТКАТА ======
+// ====== ЛОГИКА НА ИГРАТА ======
 
 function nextBattle() {
     if (currentTIdx >= TERRITORIES.length) {
@@ -110,14 +125,12 @@ function listenForUpdates() {
             return;
         }
 
-        // Проверка за нов въпрос (Синхронизация за телефона)
         if (data.currentQIdx !== -1 && data.currentQIdx !== currentQIndex) {
             currentQIndex = data.currentQIdx;
             currentTIdx = data.currentTIdx;
             showQuestion(questions[currentQIndex]);
         }
 
-        // Когато и двамата са отговорили
         if (data.p1Ready && data.p2Ready) {
             resolveBattle(data);
         }
@@ -126,10 +139,7 @@ function listenForUpdates() {
 
 function showQuestion(q) {
     if (!q) return;
-    
-    // Показваме бутоните, в случай че са скрити
     ansButtons.forEach(btn => btn.style.display = "inline-block");
-    
     const t = TERRITORIES[currentTIdx] || {name: "Територия", points: 0};
     qText.innerHTML = `<small>Битка за: ${t.name}</small><br>${q.q}`;
     
@@ -200,7 +210,6 @@ function resolveBattle(data) {
     updateTerritoryUI();
     document.getElementById("scoreVal").textContent = `Вие: ${myScore} | Опонент: ${oppScore}`;
 
-    // Само Player 1 мести към следваща територия след пауза
     if (myRole === 'player1') {
         setTimeout(() => {
             currentTIdx++;
@@ -230,41 +239,50 @@ function showFinalResults() {
     document.getElementById("restartBtn").onclick = () => window.location.href = "quiz.html";
 }
 
-// ====== АДМИН ПАНЕЛ ======
+// ====== АДМИН ПАНЕЛ (С FIREBASE) ======
 const adminModal = document.getElementById("adminModal");
 const adminArea = document.getElementById("adminArea");
 
-document.getElementById("openAdmin").onclick = () => adminModal.style.display = 'flex';
+document.getElementById("openAdmin").onclick = () => {
+    adminModal.style.display = 'flex';
+    renderAdminList();
+};
 document.getElementById("closeModalBtn").onclick = () => adminModal.style.display = 'none';
 document.getElementById("closeAdmin").onclick = () => adminModal.style.display = 'none';
 
 document.getElementById("adminLoginBtn").onclick = () => {
     if (document.getElementById("adminPass").value === adminPassword) {
         adminArea.style.display = 'block';
-        renderAdminList();
     } else alert("Грешна парола!");
 };
 
 function renderAdminList() {
-    const list = document.getElementById("questionsList");
-    list.innerHTML = questions.map((q, i) => `
-        <div style="display:flex; justify-content:space-between; margin-bottom:5px; border-bottom:1px solid #eee;">
-            <span>${q.q}</span>
-            <button onclick="deleteQ(${i})" class="tertiary">X</button>
-        </div>
-    `).join('');
+    db.ref('shared_questions').on('value', (snapshot) => {
+        const data = snapshot.val();
+        const list = document.getElementById("questionsList");
+        list.innerHTML = "";
+        if (data) {
+            Object.keys(data).forEach((key) => {
+                const q = data[key];
+                list.innerHTML += `
+                    <div style="display:flex; justify-content:space-between; margin-bottom:5px; border-bottom:1px solid #eee; padding:5px;">
+                        <span>${q.q}</span>
+                        <button onclick="deleteFromFirebase('${key}')" style="background:red; color:white; border:none; padding:2px 8px; cursor:pointer;">X</button>
+                    </div>
+                `;
+            });
+        }
+    });
 }
 
-window.deleteQ = (i) => {
-    if (confirm("Изтриване?")) {
-        questions.splice(i, 1);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(questions));
-        renderAdminList();
+window.deleteFromFirebase = (key) => {
+    if (confirm("Изтриване от облака?")) {
+        db.ref('shared_questions/' + key).remove();
     }
 };
 
 document.getElementById("addQBtn").onclick = () => {
-    const q = {
+    const newQuestion = {
         q: document.getElementById("newQ").value,
         answers: [
             document.getElementById("newA0").value,
@@ -274,10 +292,11 @@ document.getElementById("addQBtn").onclick = () => {
         ],
         correct: parseInt(document.getElementById("newCorrect").value)
     };
-    questions.push(q);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(questions));
-    renderAdminList();
-    alert("Въпросът е добавен!");
+
+    db.ref('shared_questions').push(newQuestion).then(() => {
+        alert("Въпросът е добавен в облака!");
+        document.getElementById("newQ").value = "";
+    });
 };
 
 document.getElementById("muteBtn").onclick = () => {
