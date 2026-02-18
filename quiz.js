@@ -23,7 +23,7 @@ const TERRITORIES = [
     { name: "Център", points: 180, owner: null }
 ];
 
-let questions = []; // Ще се зареждат от Firebase
+let questions = []; 
 let roomID = new URLSearchParams(window.location.search).get('room');
 let myRole = roomID ? 'player2' : 'player1';
 let currentTIdx = -1;
@@ -40,32 +40,29 @@ const setupContainer = document.getElementById("setup-container");
 const createRoomBtn = document.getElementById("createRoomBtn");
 const territoryStatus = document.getElementById("territoryStatus");
 
-// ====== ЗАРЕЖДАНЕ НА ВЪПРОСИ ОТ FIREBASE ======
-
+// ====== ЗАРЕЖДАНЕ НА ВЪПРОСИ ОТ ОБЛАКА ======
 function loadQuestionsFromDB(callback) {
     db.ref('shared_questions').on('value', (snapshot) => {
         const data = snapshot.val();
         if (data) {
             questions = Object.values(data);
-            console.log("Заредени въпроси:", questions.length);
         }
         if (callback) callback();
     });
 }
 
 // ====== ИНИЦИАЛИЗАЦИЯ ======
-
 loadQuestionsFromDB(() => {
     if (roomID) {
-        setupContainer.innerHTML = "<h3>Свързване към облака...</h3>";
+        setupContainer.innerHTML = "<h3>Свързване към играта...</h3>";
         db.ref('rooms/' + roomID).update({ status: 'playing' });
         initGame();
     }
 });
 
 createRoomBtn.onclick = () => {
-    if (questions.length === 0) {
-        alert("Първо добавете въпроси от Админ панела!");
+    if (questions.length < 6) {
+        alert("Моля, добавете поне 6 въпроса в Админ панела (по един за всяка територия)!");
         return;
     }
     roomID = "room_" + Math.random().toString(36).substr(2, 6);
@@ -81,7 +78,8 @@ createRoomBtn.onclick = () => {
         currentTIdx: -1,
         currentQIdx: -1,
         p1Ready: false, p2Ready: false,
-        p1Correct: false, p2Correct: false
+        p1Correct: false, p2Correct: false,
+        p1Time: 999, p2Time: 999
     });
 
     db.ref('rooms/' + roomID + '/status').on('value', (snap) => {
@@ -99,19 +97,26 @@ function initGame() {
     listenForUpdates();
 }
 
-// ====== ЛОГИКА НА ИГРАТА ======
+// ====== ЛОГИКА НА БИТКАТА ======
 
 function nextBattle() {
     if (currentTIdx >= TERRITORIES.length) {
         db.ref('rooms/' + roomID).update({ status: 'finished' });
         return;
     }
+
     const qIdx = Math.floor(Math.random() * questions.length);
+    
+    // Пълно нулиране на състоянието в Firebase за новия рунд
     db.ref('rooms/' + roomID).update({
         currentTIdx: currentTIdx,
         currentQIdx: qIdx,
-        p1Ready: false, p2Ready: false,
-        p1Correct: false, p2Correct: false
+        p1Ready: false, 
+        p2Ready: false,
+        p1Correct: false, 
+        p2Correct: false,
+        p1Time: 999, 
+        p2Time: 999
     });
 }
 
@@ -125,13 +130,17 @@ function listenForUpdates() {
             return;
         }
 
+        // Следене за нов въпрос
         if (data.currentQIdx !== -1 && data.currentQIdx !== currentQIndex) {
             currentQIndex = data.currentQIdx;
             currentTIdx = data.currentTIdx;
             showQuestion(questions[currentQIndex]);
         }
 
+        // Когато и двамата са готови - изчисляваме победител
         if (data.p1Ready && data.p2Ready) {
+            // Спираме таймера веднага, за да не се задейства handleAnswer(-1)
+            clearInterval(timerInterval);
             resolveBattle(data);
         }
     });
@@ -139,9 +148,14 @@ function listenForUpdates() {
 
 function showQuestion(q) {
     if (!q) return;
-    ansButtons.forEach(btn => btn.style.display = "inline-block");
+    ansButtons.forEach(btn => {
+        btn.style.display = "inline-block";
+        btn.className = "answer-btn";
+        btn.disabled = false;
+    });
+
     const t = TERRITORIES[currentTIdx] || {name: "Територия", points: 0};
-    qText.innerHTML = `<small>Битка за: ${t.name}</small><br>${q.q}`;
+    qText.innerHTML = `<b style="color:#2c3e50">Битка за: ${t.name}</b><br>${q.q}`;
     
     startTime = Date.now();
     timeLeft = 15;
@@ -149,8 +163,6 @@ function showQuestion(q) {
 
     ansButtons.forEach((btn, i) => {
         btn.textContent = q.answers[i];
-        btn.className = "answer-btn";
-        btn.disabled = false;
         btn.onclick = () => handleAnswer(i, q.correct);
     });
 
@@ -172,7 +184,7 @@ function handleAnswer(idx, correct) {
 
     const isCorrect = (idx === correct);
     if (isCorrect) {
-        ansButtons[idx].classList.add('correct');
+        if (idx !== -1) ansButtons[idx].classList.add('correct');
         if (!isMuted) document.getElementById("soundCorrect").play();
     } else {
         if (idx !== -1) ansButtons[idx].classList.add('wrong');
@@ -190,8 +202,9 @@ function handleAnswer(idx, correct) {
 
 function resolveBattle(data) {
     const t = TERRITORIES[currentTIdx];
-    let winner = null;
+    if (!t || t.owner) return; // Предотвратяваме повторно изчисляване
 
+    let winner = null;
     if (data.p1Correct && data.p2Correct) {
         winner = data.p1Time < data.p2Time ? 'p1' : 'p2';
     } else if (data.p1Correct) winner = 'p1';
@@ -210,11 +223,12 @@ function resolveBattle(data) {
     updateTerritoryUI();
     document.getElementById("scoreVal").textContent = `Вие: ${myScore} | Опонент: ${oppScore}`;
 
+    // Player 1 контролира времето за следващия въпрос
     if (myRole === 'player1') {
         setTimeout(() => {
             currentTIdx++;
             nextBattle();
-        }, 3000);
+        }, 3000); // 3 секунди пауза за разглеждане на резултата
     }
 }
 
@@ -222,24 +236,35 @@ function updateTerritoryUI() {
     territoryStatus.innerHTML = TERRITORIES.map(t => {
         let ownerLabel = "(Свободна)";
         let color = "#666";
-        if (t.owner === myRole) { ownerLabel = "(Ваша)"; color = "green"; }
-        else if (t.owner) { ownerLabel = "(Опонент)"; color = "red"; }
-        return `<p style="color:${color}">● ${t.name}: ${t.points}т. ${ownerLabel}</p>`;
+        if (t.owner === myRole) { ownerLabel = "(Ваша)"; color = "#27ae60"; }
+        else if (t.owner) { ownerLabel = "(Опонент)"; color = "#e74c3c"; }
+        return `<p style="color:${color}; font-weight:bold; margin:5px 0;">● ${t.name}: ${t.points}т. ${ownerLabel}</p>`;
     }).join('');
 }
 
 function showFinalResults() {
-    let msg = myZones > oppZones ? "ПОБЕДА! Вие завладяхте града!" : "ЗАГУБА! Опонентът беше по-добър.";
-    if (myZones === oppZones) {
-        msg = myScore >= oppScore ? "ПОБЕДА ПО ТОЧКИ!" : "ЗАГУБА ПО ТОЧКИ!";
+    let resultTitle = "";
+    if (myZones > oppZones) {
+        resultTitle = "🏆 ВЕЛИКА ПОБЕДА!";
+    } else if (oppZones > myZones) {
+        resultTitle = "❌ ЗАГУБА";
+    } else {
+        resultTitle = myScore >= oppScore ? "🏆 ПОБЕДА ПО ТОЧКИ!" : "❌ ЗАГУБА ПО ТОЧКИ";
     }
-    qText.innerHTML = `<h3>Играта приключи</h3>${msg}<br>Територии: ${myZones} срещу ${oppZones}`;
+
+    qText.innerHTML = `
+        <div style="text-align:center">
+            <h2>${resultTitle}</h2>
+            <p style="font-size:1.2em">Вашият резултат: <b>${myScore}</b> т. (${myZones} зони)</p>
+            <p>Опонентът: <b>${oppScore}</b> т. (${oppZones} зони)</p>
+        </div>
+    `;
     ansButtons.forEach(b => b.style.display = 'none');
     document.getElementById("restartBtn").style.display = "block";
     document.getElementById("restartBtn").onclick = () => window.location.href = "quiz.html";
 }
 
-// ====== АДМИН ПАНЕЛ (С FIREBASE) ======
+// ====== АДМИН ПАНЕЛ ======
 const adminModal = document.getElementById("adminModal");
 const adminArea = document.getElementById("adminArea");
 
@@ -265,9 +290,9 @@ function renderAdminList() {
             Object.keys(data).forEach((key) => {
                 const q = data[key];
                 list.innerHTML += `
-                    <div style="display:flex; justify-content:space-between; margin-bottom:5px; border-bottom:1px solid #eee; padding:5px;">
-                        <span>${q.q}</span>
-                        <button onclick="deleteFromFirebase('${key}')" style="background:red; color:white; border:none; padding:2px 8px; cursor:pointer;">X</button>
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid #eee;">
+                        <span style="font-size:0.9em">${q.q}</span>
+                        <button onclick="deleteFromFirebase('${key}')" style="background:#e74c3c; color:white; border:none; border-radius:4px; padding:4px 8px; cursor:pointer;">X</button>
                     </div>
                 `;
             });
@@ -276,25 +301,28 @@ function renderAdminList() {
 }
 
 window.deleteFromFirebase = (key) => {
-    if (confirm("Изтриване от облака?")) {
+    if (confirm("Изтриване на въпроса от облака?")) {
         db.ref('shared_questions/' + key).remove();
     }
 };
 
 document.getElementById("addQBtn").onclick = () => {
+    const qVal = document.getElementById("newQ").value;
+    const a0 = document.getElementById("newA0").value;
+    const a1 = document.getElementById("newA1").value;
+    const a2 = document.getElementById("newA2").value;
+    const a3 = document.getElementById("newA3").value;
+
+    if(!qVal || !a0 || !a1) { alert("Попълнете поне въпроса и първите два отговора!"); return; }
+
     const newQuestion = {
-        q: document.getElementById("newQ").value,
-        answers: [
-            document.getElementById("newA0").value,
-            document.getElementById("newA1").value,
-            document.getElementById("newA2").value,
-            document.getElementById("newA3").value
-        ],
+        q: qVal,
+        answers: [a0, a1, a2, a3],
         correct: parseInt(document.getElementById("newCorrect").value)
     };
 
     db.ref('shared_questions').push(newQuestion).then(() => {
-        alert("Въпросът е добавен в облака!");
+        alert("Въпросът е успешно добавен!");
         document.getElementById("newQ").value = "";
     });
 };
