@@ -1,4 +1,4 @@
-// ====== FIREBASE CONFIG (Твоите данни) ======
+// ====== FIREBASE CONFIG ======
 const firebaseConfig = {
     apiKey: "AIzaSyAV13nj5-G1vaUanLuz95Ni_JZWZOVsgI0",
     authDomain: "gallerygd-db3e0.firebaseapp.com",
@@ -27,7 +27,8 @@ const TERRITORIES = [
 let questions = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
 let roomID = new URLSearchParams(window.location.search).get('room');
 let myRole = roomID ? 'player2' : 'player1';
-let currentTIdx = 0;
+let currentTIdx = -1; // Започваме от -1 за по-добра синхронизация
+let currentQIndex = -1;
 let myScore = 0, oppScore = 0;
 let myZones = 0, oppZones = 0;
 let timerInterval, startTime, timeLeft = 15;
@@ -43,7 +44,9 @@ const territoryStatus = document.getElementById("territoryStatus");
 // ====== ИНИЦИАЛИЗАЦИЯ ======
 
 if (roomID) {
+    console.log("Влизане като Player 2 в стая:", roomID);
     setupContainer.innerHTML = "<h3>Свързване към играта...</h3>";
+    // Казваме на базата данни, че Player 2 е тук
     db.ref('rooms/' + roomID).update({ status: 'playing' });
     initGame();
 }
@@ -60,6 +63,7 @@ createRoomBtn.onclick = () => {
     db.ref('rooms/' + roomID).set({
         status: 'waiting',
         currentTIdx: -1,
+        currentQIdx: -1,
         p1Ready: false, p2Ready: false,
         p1Correct: false, p2Correct: false,
         p1Time: 999, p2Time: 999
@@ -73,7 +77,10 @@ createRoomBtn.onclick = () => {
 function initGame() {
     setupContainer.style.display = "none";
     updateTerritoryUI();
-    if (myRole === 'player1') nextBattle();
+    if (myRole === 'player1') {
+        currentTIdx = 0;
+        nextBattle();
+    }
     listenForUpdates();
 }
 
@@ -84,12 +91,12 @@ function nextBattle() {
         db.ref('rooms/' + roomID).update({ status: 'finished' });
         return;
     }
-    // Player 1 избира случаен въпрос
     const qIdx = Math.floor(Math.random() * questions.length);
     db.ref('rooms/' + roomID).update({
         currentTIdx: currentTIdx,
         currentQIdx: qIdx,
-        p1Ready: false, p2Ready: false
+        p1Ready: false, p2Ready: false,
+        p1Correct: false, p2Correct: false
     });
 }
 
@@ -103,12 +110,11 @@ function listenForUpdates() {
             return;
         }
 
-        // Нов въпрос
-        if (data.currentTIdx !== -1 && data.currentTIdx !== currentTIdx - 1) {
-            if (data.p1Ready === false && data.p2Ready === false) {
-                currentTIdx = data.currentTIdx;
-                showQuestion(questions[data.currentQIdx]);
-            }
+        // Проверка за нов въпрос (Синхронизация за телефона)
+        if (data.currentQIdx !== -1 && data.currentQIdx !== currentQIndex) {
+            currentQIndex = data.currentQIdx;
+            currentTIdx = data.currentTIdx;
+            showQuestion(questions[currentQIndex]);
         }
 
         // Когато и двамата са отговорили
@@ -119,8 +125,14 @@ function listenForUpdates() {
 }
 
 function showQuestion(q) {
-    const t = TERRITORIES[currentTIdx];
+    if (!q) return;
+    
+    // Показваме бутоните, в случай че са скрити
+    ansButtons.forEach(btn => btn.style.display = "inline-block");
+    
+    const t = TERRITORIES[currentTIdx] || {name: "Територия", points: 0};
     qText.innerHTML = `<small>Битка за: ${t.name}</small><br>${q.q}`;
+    
     startTime = Date.now();
     timeLeft = 15;
     document.getElementById("timeLeft").textContent = timeLeft;
@@ -128,7 +140,6 @@ function showQuestion(q) {
     ansButtons.forEach((btn, i) => {
         btn.textContent = q.answers[i];
         btn.className = "answer-btn";
-        btn.style.display = "inline-block";
         btn.disabled = false;
         btn.onclick = () => handleAnswer(i, q.correct);
     });
@@ -137,7 +148,10 @@ function showQuestion(q) {
     timerInterval = setInterval(() => {
         timeLeft--;
         document.getElementById("timeLeft").textContent = timeLeft;
-        if (timeLeft <= 0) handleAnswer(-1, q.correct);
+        if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            handleAnswer(-1, q.correct);
+        }
     }, 1000);
 }
 
@@ -186,6 +200,7 @@ function resolveBattle(data) {
     updateTerritoryUI();
     document.getElementById("scoreVal").textContent = `Вие: ${myScore} | Опонент: ${oppScore}`;
 
+    // Само Player 1 мести към следваща територия след пауза
     if (myRole === 'player1') {
         setTimeout(() => {
             currentTIdx++;
@@ -215,8 +230,7 @@ function showFinalResults() {
     document.getElementById("restartBtn").onclick = () => window.location.href = "quiz.html";
 }
 
-// ====== АДМИН ПАНЕЛ (Твоят код) ======
-
+// ====== АДМИН ПАНЕЛ ======
 const adminModal = document.getElementById("adminModal");
 const adminArea = document.getElementById("adminArea");
 
