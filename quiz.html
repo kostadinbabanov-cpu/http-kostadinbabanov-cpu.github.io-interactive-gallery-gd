@@ -3,8 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Куиз – Гоце Делчев</title>
+  <title>Куиз – Гоце Делчев (Triviador Edition)</title>
   <link rel="stylesheet" href="quiz.css" />
+  
+  <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
   <header class="site-header">
@@ -14,57 +18,54 @@
       <a href="history.html">История</a>
       <a href="sights.html">Забележителности</a>
       <a href="gallery.html">Галерия</a>
-      <a class="active" href="quiz.html">Куиз</a>
+      <a class="active" href="quiz.html">Игра</a>
       <a href="map.html">Карта</a>
-    
     </nav>
   </header>
 
   <main class="container">
+    <section id="setup-container" class="card" style="margin-bottom: 20px; text-align: center;">
+        <h3>Мултиплейър режим (2-ма играчи)</h3>
+        <div id="qrcode" style="display: flex; justify-content: center; margin: 15px 0;"></div>
+        <p id="setup-msg">Натиснете бутона, за да създадете стая и сканирайте кода с втория телефон.</p>
+        <button id="createRoomBtn" class="primary">Създай стая за игра</button>
+    </section>
+
     <section id="game" class="card">
       <div class="top-bar">
-        <div id="progress">Въпрос <span id="currentIdx">0</span> / <span id="totalQ">0</span></div>
-        <div id="score">Точки: <span id="scoreVal">0</span></div>
+        <div id="progress">Таймер: <span id="timeLeft">15</span>s</div>
+        <div id="score"><span id="scoreVal">Вие: 0 | Опонент: 0</span></div>
       </div>
 
       <div id="questionBox" class="question-box">
-        <div id="questionText" class="question-text">Натисни "Старт", за да започнеш куиза.</div>
+        <div id="questionText" class="question-text">Очаква се стартиране на стая...</div>
 
         <div id="answers" class="answers-grid">
-          <button class="answer-btn" id="ans0" data-index="0"></button>
-          <button class="answer-btn" id="ans1" data-index="1"></button>
-          <button class="answer-btn" id="ans2" data-index="2"></button>
-          <button class="answer-btn" id="ans3" data-index="3"></button>
+          <button class="answer-btn" id="ans0" data-index="0" style="display:none"></button>
+          <button class="answer-btn" id="ans1" data-index="1" style="display:none"></button>
+          <button class="answer-btn" id="ans2" data-index="2" style="display:none"></button>
+          <button class="answer-btn" id="ans3" data-index="3" style="display:none"></button>
         </div>
 
-        <div class="controls">
-          <button id="startBtn" class="primary">Старт</button>
-          <button id="nextBtn" class="primary" style="display:none">Следващ</button>
-          <button id="restartBtn" class="secondary" style="display:none">Рестарт</button>
+        <div class="controls" style="justify-content: center;">
+          <button id="restartBtn" class="secondary" style="display:none">Нова игра</button>
         </div>
       </div>
     </section>
 
     <aside id="rightColumn" class="card sidebar">
-      <h3>Панел</h3>
-      <p id="hint">Подсказките са изключени в този режим.</p>
-      <div class="small-controls">
-        <label>Случайни въпроси <input type="checkbox" id="shuffleQ"></label>
-        <label>Брой въпроси <input type="number" id="limitQ" min="1" value="10" style="width:80px"></label>
-      </div>
+      <h3>Територии (6)</h3>
+      <div id="territoryStatus" style="font-size: 0.9rem; line-height: 1.6;">
+        </div>
 
       <div class="audio-controls">
-        <p><strong>Звук</strong></p>
         <button id="muteBtn" class="secondary">Изключи звук</button>
       </div>
-
       <hr>
-
       <button id="openAdmin" class="tertiary">Админ: Управление на въпроси</button>
     </aside>
   </main>
 
-  <!-- Админ модал -->
   <div id="adminModal" class="modal" aria-hidden="true">
     <div class="modal-content">
       <h2>Администратор — управление на въпроси</h2>
@@ -80,15 +81,10 @@
           <label>Правилен индекс (0-3)<input id="newCorrect" type="number" min="0" max="3" value="0"></label>
           <button id="addQBtn" class="primary">Добави въпрос</button>
         </div>
-
         <hr>
         <h3>Съществуващи въпроси</h3>
         <div id="questionsList"></div>
-
         <hr>
-        <h3>Импорт / Експорт</h3>
-        <p><button id="exportBtn" class="secondary">Експорт (JSON)</button> <input id="importFile" type="file" accept=".json"> <button id="importBtn" class="secondary">Импорт</button></p>
-
         <p style="margin-top:10px"><button id="closeAdmin" class="secondary">Затвори</button></p>
       </div>
       <button id="closeModalBtn" class="tertiary">Затвори прозореца</button>
@@ -96,13 +92,11 @@
   </div>
 
   <footer class="site-footer">
-<center><p class="copyright-line">&copy; 2025 Интерактивна галерия – гр. Гоце Делчев | Ивана Петрова Темелкова</p> </center>  </footer>
+    <center><p>&copy; 2025 Интерактивна галерия – гр. Гоце Делчев | Ивана Петрова Темелкова</p></center>
+  </footer>
 
-<!-- Аудио (постави файловете в папката или премахни елементите ако нямаш) -->
-<audio id="bgMusic" src="audio/background.mp3" loop preload="none"></audio>
-<audio id="soundCorrect" src="audio/correct.mp3" preload="none"></audio>
-<audio id="soundWrong" src="audio/wrong.mp3" preload="none"></audio>
-
+  <audio id="soundCorrect" src="audio/correct.mp3" preload="none"></audio>
+  <audio id="soundWrong" src="audio/wrong.mp3" preload="none"></audio>
   <script src="quiz.js"></script>
 </body>
 </html>
