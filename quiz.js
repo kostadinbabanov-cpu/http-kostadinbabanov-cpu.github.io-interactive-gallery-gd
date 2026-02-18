@@ -1,317 +1,272 @@
-/* quiz.js
-   Локален админ панел + динамичен куиз
-   Парола по подразбиране: teacher123
-   Модифицирай стойността на adminPassword по желание.
-*/
+// ====== FIREBASE CONFIG (Твоите данни) ======
+const firebaseConfig = {
+    apiKey: "AIzaSyAV13nj5-G1vaUanLuz95Ni_JZWZOVsgI0",
+    authDomain: "gallerygd-db3e0.firebaseapp.com",
+    projectId: "gallerygd-db3e0",
+    storageBucket: "gallerygd-db3e0.firebasestorage.app",
+    messagingSenderId: "15172686148",
+    appId: "1:15172686148:web:a2f633fd8399112760c711",
+    databaseURL: "https://gallerygd-db3e0-default-rtdb.europe-west1.firebasedatabase.app/"
+};
 
-// ====== Конфигурация =========
-const adminPassword = "ivana123"; // смени ако искаш
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// ====== ПРОМЕНЛИВИ ======
+const adminPassword = "ivana123";
 const STORAGE_KEY = "gd_quiz_questions_v1";
-const DEFAULT_QUESTIONS = [
-  { q:"Кой уред се използва най-често за откриване на метални предмети под земята?", answers:["Магнитометър","Металдетектор","Сонар","Георадар"], correct:1 },
-  { q:"Как се нарича техниката за риболов с използване на изкуствена примамка?", answers:["Тролинг","Спининг","Плувкарство","Фидер"], correct:1 },
-  { q:"Кой е основният инструмент за диагностика на автомобилни повреди?", answers:["Компресор","Динамометър","Диагностичен скенер","Гаечен ключ"], correct:2 }
+const TERRITORIES = [
+    { name: "Градски парк", points: 100, owner: null },
+    { name: "Панорама", points: 150, owner: null },
+    { name: "Дом на културата", points: 200, owner: null },
+    { name: "Исторически музей", points: 120, owner: null },
+    { name: "Манастир", points: 250, owner: null },
+    { name: "Център", points: 180, owner: null }
 ];
 
-// ====== DOM елементи ======
-const startBtn = document.getElementById("startBtn");
-const nextBtn = document.getElementById("nextBtn");
-const restartBtn = document.getElementById("restartBtn");
-const questionText = document.getElementById("questionText");
-const answersEl = document.getElementById("answers");
+let questions = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+let roomID = new URLSearchParams(window.location.search).get('room');
+let myRole = roomID ? 'player2' : 'player1';
+let currentTIdx = 0;
+let myScore = 0, oppScore = 0;
+let myZones = 0, oppZones = 0;
+let timerInterval, startTime, timeLeft = 15;
+let isMuted = false;
+
+// DOM елементи
+const qText = document.getElementById("questionText");
 const ansButtons = Array.from(document.querySelectorAll(".answer-btn"));
-const currentIdxEl = document.getElementById("currentIdx");
-const totalQEl = document.getElementById("totalQ");
-const scoreVal = document.getElementById("scoreVal");
-const shuffleQ = document.getElementById("shuffleQ");
-const limitQ = document.getElementById("limitQ");
-const muteBtn = document.getElementById("muteBtn");
+const setupContainer = document.getElementById("setup-container");
+const createRoomBtn = document.getElementById("createRoomBtn");
+const territoryStatus = document.getElementById("territoryStatus");
 
-// Admin
-const openAdmin = document.getElementById("openAdmin");
-const adminModal = document.getElementById("adminModal");
-const adminLoginBtn = document.getElementById("adminLoginBtn");
-const adminPass = document.getElementById("adminPass");
-const adminArea = document.getElementById("adminArea");
-const addQBtn = document.getElementById("addQBtn");
-const newQ = document.getElementById("newQ");
-const newA0 = document.getElementById("newA0");
-const newA1 = document.getElementById("newA1");
-const newA2 = document.getElementById("newA2");
-const newA3 = document.getElementById("newA3");
-const newCorrect = document.getElementById("newCorrect");
-const questionsList = document.getElementById("questionsList");
-const exportBtn = document.getElementById("exportBtn");
-const importFile = document.getElementById("importFile");
-const importBtn = document.getElementById("importBtn");
-const closeAdmin = document.getElementById("closeAdmin");
-const closeModalBtn = document.getElementById("closeModalBtn");
+// ====== ИНИЦИАЛИЗАЦИЯ ======
 
-// Audio
-const bgMusic = document.getElementById("bgMusic");
-const soundCorrect = document.getElementById("soundCorrect");
-const soundWrong = document.getElementById("soundWrong");
-const soundSelect = document.getElementById("soundSelect");
-let muted = false;
-
-// State
-let questions = loadQuestions();
-let runtimeQuestions = [];
-let currentIndex = 0;
-let score = 0;
-
-// ====== хелпъри ======
-function loadQuestions(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_QUESTIONS));
-      return JSON.parse(JSON.stringify(DEFAULT_QUESTIONS));
-    }
-    return JSON.parse(raw);
-  } catch(e){
-    console.error(e);
-    return JSON.parse(JSON.stringify(DEFAULT_QUESTIONS));
-  }
-}
-function saveQuestions(){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(questions));
-}
-function shuffleArray(arr){
-  for(let i=arr.length-1;i>0;i--){
-    const j=Math.floor(Math.random()*(i+1));
-    [arr[i],arr[j]]=[arr[j],arr[i]];
-  }
+if (roomID) {
+    setupContainer.innerHTML = "<h3>Свързване към играта...</h3>";
+    db.ref('rooms/' + roomID).update({ status: 'playing' });
+    initGame();
 }
 
-// ====== UI логика за играта ======
-function prepareRun(){
-  // клонираме
-  runtimeQuestions = questions.slice();
-  if(shuffleQ.checked) shuffleArray(runtimeQuestions);
-  const limit = parseInt(limitQ.value) || runtimeQuestions.length;
-  runtimeQuestions = runtimeQuestions.slice(0, Math.min(limit, runtimeQuestions.length));
-  totalQEl.textContent = runtimeQuestions.length;
-  currentIndex = 0;
-  score = 0;
-  scoreVal.textContent = score;
-  currentIdxEl.textContent = 0;
-  nextBtn.style.display = "none";
-  restartBtn.style.display = "none";
-  startBtn.style.display = "inline-block";
-  questionText.textContent = 'Натисни "Старт", за да започнеш.';
-  ansButtons.forEach(b=>{ b.style.display='none'; b.className='answer-btn'; });
-}
+createRoomBtn.onclick = () => {
+    roomID = "room_" + Math.random().toString(36).substr(2, 6);
+    const url = window.location.href + "?room=" + roomID;
+    
+    document.getElementById("qrcode").innerHTML = "";
+    new QRCode(document.getElementById("qrcode"), url);
+    document.getElementById("setup-msg").innerHTML = `<b>Стаята е създадена!</b><br>Сканирайте QR кода с втория телефон.`;
+    createRoomBtn.style.display = "none";
 
-function startQuiz(){
-  if(runtimeQuestions.length===0){
-    alert("Няма въпроси в базата. Добави въпроси в админ панела.");
-    return;
-  }
-  startBtn.style.display='none';
-  currentIndex = 0;
-  score = 0;
-  scoreVal.textContent = score;
-  showQuestion();
-  playBackground();
-}
-
-function showQuestion(){
-  const item = runtimeQuestions[currentIndex];
-  questionText.textContent = item.q;
-  ansButtons.forEach((btn, i)=>{
-    btn.textContent = item.answers[i] || "";
-    btn.disabled=false;
-    btn.className='answer-btn';
-    btn.style.display = 'inline-block';
-  });
-  currentIdxEl.textContent = currentIndex+1;
-  totalQEl.textContent = runtimeQuestions.length;
-  nextBtn.style.display='none';
-  restartBtn.style.display='none';
-}
-
-function handleAnswer(e){
-  const idx = parseInt(this.getAttribute("data-index"));
-  const item = runtimeQuestions[currentIndex];
-  disableAnswers();
-  playSelect();
-  setTimeout(()=>{
-    // проверка
-    if(idx === item.correct){
-      this.classList.add('correct');
-      playSound(soundCorrect);
-      score += 1;
-      scoreVal.textContent = score;
-    } else {
-      this.classList.add('wrong');
-      // маркираме правилния
-      const rightBtn = ansButtons[item.correct];
-      if(rightBtn) rightBtn.classList.add('correct');
-      playSound(soundWrong);
-    }
-    nextBtn.style.display = 'inline-block';
-    restartBtn.style.display = 'inline-block';
-  }, 350);
-}
-
-function disableAnswers(){
-  ansButtons.forEach(b=>{ b.disabled=true; b.classList.add('disabled'); });
-}
-
-function nextQuestion(){
-  currentIndex++;
-  if(currentIndex >= runtimeQuestions.length){
-    finishQuiz();
-    return;
-  }
-  showQuestion();
-}
-
-function finishQuiz(){
-  stopBackground();
-  questionText.textContent = `Край! Вашият резултат: ${score} от ${runtimeQuestions.length}`;
-  ansButtons.forEach(b=> b.style.display='none');
-  startBtn.style.display='none';
-  nextBtn.style.display='none';
-  restartBtn.style.display='inline-block';
-}
-
-// ====== аудио функции ======
-function playBackground(){ if(!muted){ bgMusic.currentTime=0; bgMusic.play(); } }
-function stopBackground(){ bgMusic.pause(); bgMusic.currentTime=0; }
-function playSound(s){ if(!muted){ try{ s.currentTime=0; s.play(); }catch(e){} } }
-function playSelect(){ playSound(soundSelect); }
-muteBtn.addEventListener('click', ()=>{
-  muted = !muted;
-  muteBtn.textContent = muted ? 'Включи звук':'Изключи звук';
-  if(muted) stopBackground(); else playBackground();
-});
-
-// ====== Прикачване на събития ======
-startBtn.addEventListener('click', startQuiz);
-nextBtn.addEventListener('click', ()=>{ nextQuestion(); });
-restartBtn.addEventListener('click', ()=>{ prepareRun(); startQuiz(); });
-
-ansButtons.forEach(btn=> btn.addEventListener('click', handleAnswer));
-
-// при първо зареждане
-prepareRun();
-
-// ====== Admin функции ======
-openAdmin.addEventListener('click', ()=>{ adminModal.style.display='flex'; adminPass.value=''; adminArea.style.display='none'; });
-closeModalBtn.addEventListener('click', ()=>{ adminModal.style.display='none'; });
-closeAdmin.addEventListener('click', ()=>{ adminModal.style.display='none'; });
-
-adminLoginBtn.addEventListener('click', ()=>{
-  const p = adminPass.value.trim();
-  if(p === adminPassword){
-    adminArea.style.display='block';
-    renderAdminList();
-  } else {
-    alert('Грешна парола.');
-  }
-});
-
-function renderAdminList(){
-  questionsList.innerHTML='';
-  questions.forEach((q, idx)=>{
-    const div = document.createElement('div');
-    div.className='q-item';
-    div.innerHTML = `
-      <div>
-        <strong>${idx+1}.</strong> <span>${escapeHtml(q.q)}</span><br/>
-        <small>Отговори: ${q.answers.map((a,i)=> i===q.correct? `<b>${escapeHtml(a)}</b>`:escapeHtml(a)).join(' | ')}</small>
-      </div>
-      <div class="q-actions">
-        <button data-idx="${idx}" class="secondary editBtn">Edit</button>
-        <button data-idx="${idx}" class="secondary delBtn">Delete</button>
-      </div>
-    `;
-    questionsList.appendChild(div);
-  });
-  Array.from(document.querySelectorAll('.delBtn')).forEach(b=>{
-    b.addEventListener('click',(e)=>{
-      const i=parseInt(e.target.dataset.idx);
-      if(confirm('Сигурни ли сте, че искате да изтриете въпроса?')) {
-        questions.splice(i,1); saveQuestions(); renderAdminList(); prepareRun();
-      }
+    db.ref('rooms/' + roomID).set({
+        status: 'waiting',
+        currentTIdx: -1,
+        p1Ready: false, p2Ready: false,
+        p1Correct: false, p2Correct: false,
+        p1Time: 999, p2Time: 999
     });
-  });
-  Array.from(document.querySelectorAll('.editBtn')).forEach(b=>{
-    b.addEventListener('click',(e)=>{
-      const i=parseInt(e.target.dataset.idx);
-      const q=questions[i];
-      const newText = prompt('Редактирай въпроса:', q.q);
-      if(newText!==null) {
-        q.q = newText;
-        for(let k=0;k<4;k++){
-          const na = prompt(`Отговор ${k+1}:`, q.answers[k]||'');
-          if(na!==null) q.answers[k]=na;
+
+    db.ref('rooms/' + roomID + '/status').on('value', (snap) => {
+        if (snap.val() === 'playing') initGame();
+    });
+};
+
+function initGame() {
+    setupContainer.style.display = "none";
+    updateTerritoryUI();
+    if (myRole === 'player1') nextBattle();
+    listenForUpdates();
+}
+
+// ====== ЛОГИКА НА БИТКАТА ======
+
+function nextBattle() {
+    if (currentTIdx >= TERRITORIES.length) {
+        db.ref('rooms/' + roomID).update({ status: 'finished' });
+        return;
+    }
+    // Player 1 избира случаен въпрос
+    const qIdx = Math.floor(Math.random() * questions.length);
+    db.ref('rooms/' + roomID).update({
+        currentTIdx: currentTIdx,
+        currentQIdx: qIdx,
+        p1Ready: false, p2Ready: false
+    });
+}
+
+function listenForUpdates() {
+    db.ref('rooms/' + roomID).on('value', (snap) => {
+        const data = snap.val();
+        if (!data) return;
+
+        if (data.status === 'finished') {
+            showFinalResults();
+            return;
         }
-        const nc = prompt('Индекс на правилния (0-3):', q.correct);
-        if(nc!==null) q.correct = Math.max(0, Math.min(3, parseInt(nc)||0));
-        saveQuestions(); renderAdminList(); prepareRun();
-      }
+
+        // Нов въпрос
+        if (data.currentTIdx !== -1 && data.currentTIdx !== currentTIdx - 1) {
+            if (data.p1Ready === false && data.p2Ready === false) {
+                currentTIdx = data.currentTIdx;
+                showQuestion(questions[data.currentQIdx]);
+            }
+        }
+
+        // Когато и двамата са отговорили
+        if (data.p1Ready && data.p2Ready) {
+            resolveBattle(data);
+        }
     });
-  });
 }
 
-addQBtn.addEventListener('click', ()=>{
-  const q = newQ.value.trim();
-  const a0 = newA0.value.trim();
-  const a1 = newA1.value.trim();
-  const a2 = newA2.value.trim();
-  const a3 = newA3.value.trim();
-  const corr = parseInt(newCorrect.value);
-  if(!q || !a0 || !a1 || !a2 || !a3 || isNaN(corr)){
-    alert('Попълни всички полета и правилен индекс (0-3).');
-    return;
-  }
-  const obj = { q:q, answers:[a0,a1,a2,a3], correct: Math.max(0, Math.min(3, corr)) };
-  questions.push(obj);
-  saveQuestions();
-  newQ.value=''; newA0.value=''; newA1.value=''; newA2.value=''; newA3.value=''; newCorrect.value=0;
-  renderAdminList();
-  prepareRun();
-});
+function showQuestion(q) {
+    const t = TERRITORIES[currentTIdx];
+    qText.innerHTML = `<small>Битка за: ${t.name}</small><br>${q.q}`;
+    startTime = Date.now();
+    timeLeft = 15;
+    document.getElementById("timeLeft").textContent = timeLeft;
 
-// Експорт / Импорт
-exportBtn.addEventListener('click', ()=>{
-  const data = JSON.stringify(questions, null, 2);
-  const blob = new Blob([data], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href=url; a.download='quiz_questions.json'; a.click();
-  URL.revokeObjectURL(url);
-});
+    ansButtons.forEach((btn, i) => {
+        btn.textContent = q.answers[i];
+        btn.className = "answer-btn";
+        btn.style.display = "inline-block";
+        btn.disabled = false;
+        btn.onclick = () => handleAnswer(i, q.correct);
+    });
 
-importBtn.addEventListener('click', ()=> {
-  const file = importFile.files[0];
-  if(!file){ alert('Избери JSON файл.'); return; }
-  const reader = new FileReader();
-  reader.onload = e=>{
-    try{
-      const imported = JSON.parse(e.target.result);
-      if(!Array.isArray(imported)) throw new Error('Невалиден формат');
-      // basic validation
-      for(const it of imported){
-        if(typeof it.q !== 'string' || !Array.isArray(it.answers) || typeof it.correct !== 'number') throw new Error('Невалидна структура');
-      }
-      if(confirm('Импортираните въпроси ще заменят сегашните. Продължавате ли?')){
-        questions = imported;
-        saveQuestions();
-        renderAdminList(); prepareRun();
-        alert('Импортирано успешно.');
-      }
-    }catch(err){
-      alert('Грешка при импортиране: '+err.message);
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+        timeLeft--;
+        document.getElementById("timeLeft").textContent = timeLeft;
+        if (timeLeft <= 0) handleAnswer(-1, q.correct);
+    }, 1000);
+}
+
+function handleAnswer(idx, correct) {
+    clearInterval(timerInterval);
+    const timeTaken = (Date.now() - startTime) / 1000;
+    ansButtons.forEach(b => b.disabled = true);
+
+    const isCorrect = (idx === correct);
+    if (isCorrect) {
+        ansButtons[idx].classList.add('correct');
+        if (!isMuted) document.getElementById("soundCorrect").play();
+    } else {
+        if (idx !== -1) ansButtons[idx].classList.add('wrong');
+        ansButtons[correct].classList.add('correct');
+        if (!isMuted) document.getElementById("soundWrong").play();
     }
-  };
-  reader.readAsText(file);
-});
 
-// escape HTML
-function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    const update = {};
+    const prefix = myRole === 'player1' ? 'p1' : 'p2';
+    update[prefix + 'Ready'] = true;
+    update[prefix + 'Correct'] = isCorrect;
+    update[prefix + 'Time'] = isCorrect ? timeTaken : 999;
+    db.ref('rooms/' + roomID).update(update);
+}
 
-// първоначално render на админ листа (ако отворят и се логнат)
-renderAdminList();
+function resolveBattle(data) {
+    const t = TERRITORIES[currentTIdx];
+    let winner = null;
+
+    if (data.p1Correct && data.p2Correct) {
+        winner = data.p1Time < data.p2Time ? 'p1' : 'p2';
+    } else if (data.p1Correct) winner = 'p1';
+    else if (data.p2Correct) winner = 'p2';
+
+    if (winner === 'p1') {
+        t.owner = 'p1';
+        if (myRole === 'player1') { myScore += t.points; myZones++; } 
+        else { oppScore += t.points; oppZones++; }
+    } else if (winner === 'p2') {
+        t.owner = 'p2';
+        if (myRole === 'player2') { myScore += t.points; myZones++; }
+        else { oppScore += t.points; oppZones++; }
+    }
+
+    updateTerritoryUI();
+    document.getElementById("scoreVal").textContent = `Вие: ${myScore} | Опонент: ${oppScore}`;
+
+    if (myRole === 'player1') {
+        setTimeout(() => {
+            currentTIdx++;
+            nextBattle();
+        }, 3000);
+    }
+}
+
+function updateTerritoryUI() {
+    territoryStatus.innerHTML = TERRITORIES.map(t => {
+        let ownerLabel = "(Свободна)";
+        let color = "#666";
+        if (t.owner === myRole) { ownerLabel = "(Ваша)"; color = "green"; }
+        else if (t.owner) { ownerLabel = "(Опонент)"; color = "red"; }
+        return `<p style="color:${color}">● ${t.name}: ${t.points}т. ${ownerLabel}</p>`;
+    }).join('');
+}
+
+function showFinalResults() {
+    let msg = myZones > oppZones ? "ПОБЕДА! Вие завладяхте града!" : "ЗАГУБА! Опонентът беше по-добър.";
+    if (myZones === oppZones) {
+        msg = myScore >= oppScore ? "ПОБЕДА ПО ТОЧКИ!" : "ЗАГУБА ПО ТОЧКИ!";
+    }
+    qText.innerHTML = `<h3>Играта приключи</h3>${msg}<br>Територии: ${myZones} срещу ${oppZones}`;
+    ansButtons.forEach(b => b.style.display = 'none');
+    document.getElementById("restartBtn").style.display = "block";
+    document.getElementById("restartBtn").onclick = () => window.location.href = "quiz.html";
+}
+
+// ====== АДМИН ПАНЕЛ (Твоят код) ======
+
+const adminModal = document.getElementById("adminModal");
+const adminArea = document.getElementById("adminArea");
+
+document.getElementById("openAdmin").onclick = () => adminModal.style.display = 'flex';
+document.getElementById("closeModalBtn").onclick = () => adminModal.style.display = 'none';
+document.getElementById("closeAdmin").onclick = () => adminModal.style.display = 'none';
+
+document.getElementById("adminLoginBtn").onclick = () => {
+    if (document.getElementById("adminPass").value === adminPassword) {
+        adminArea.style.display = 'block';
+        renderAdminList();
+    } else alert("Грешна парола!");
+};
+
+function renderAdminList() {
+    const list = document.getElementById("questionsList");
+    list.innerHTML = questions.map((q, i) => `
+        <div style="display:flex; justify-content:space-between; margin-bottom:5px; border-bottom:1px solid #eee;">
+            <span>${q.q}</span>
+            <button onclick="deleteQ(${i})" class="tertiary">X</button>
+        </div>
+    `).join('');
+}
+
+window.deleteQ = (i) => {
+    if (confirm("Изтриване?")) {
+        questions.splice(i, 1);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(questions));
+        renderAdminList();
+    }
+};
+
+document.getElementById("addQBtn").onclick = () => {
+    const q = {
+        q: document.getElementById("newQ").value,
+        answers: [
+            document.getElementById("newA0").value,
+            document.getElementById("newA1").value,
+            document.getElementById("newA2").value,
+            document.getElementById("newA3").value
+        ],
+        correct: parseInt(document.getElementById("newCorrect").value)
+    };
+    questions.push(q);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(questions));
+    renderAdminList();
+    alert("Въпросът е добавен!");
+};
+
+document.getElementById("muteBtn").onclick = () => {
+    isMuted = !isMuted;
+    document.getElementById("muteBtn").textContent = isMuted ? "Включи звук" : "Изключи звук";
+};
