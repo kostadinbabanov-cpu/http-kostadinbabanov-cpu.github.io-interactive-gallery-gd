@@ -23,11 +23,11 @@ const TERRITORIES = [
     { name: "Център", points: 180, owner: null }
 ];
 
-let questions = []; 
+let questions = {}; // Вече е обект, за да пазим ID-тата (ключовете)
 let roomID = new URLSearchParams(window.location.search).get('room');
 let myRole = roomID ? 'player2' : 'player1';
 let currentTIdx = -1;
-let currentQIndex = -1;
+let currentQID = null; // Пазим ID-то на текущия въпрос
 let myScore = 0, oppScore = 0;
 let myZones = 0, oppZones = 0;
 let timerInterval, startTime, timeLeft = 15;
@@ -40,22 +40,12 @@ const setupContainer = document.getElementById("setup-container");
 const createRoomBtn = document.getElementById("createRoomBtn");
 const territoryStatus = document.getElementById("territoryStatus");
 
-// ====== ПОМОЩНИ ФУНКЦИИ ======
-
-// Разбъркване на масив (Fisher-Yates Shuffle) за предотвратяване на повторения
-function shuffleArray(array) {
-    for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-    }
-}
-
 // ====== ЗАРЕЖДАНЕ НА ВЪПРОСИ ОТ ОБЛАКА ======
 function loadQuestionsFromDB(callback) {
     db.ref('shared_questions').on('value', (snapshot) => {
         const data = snapshot.val();
         if (data) {
-            questions = Object.values(data);
+            questions = data; // Пазим оригиналния обект с ключовете
         }
         if (callback) callback();
     });
@@ -71,7 +61,7 @@ loadQuestionsFromDB(() => {
 });
 
 createRoomBtn.onclick = () => {
-    if (questions.length < 6) {
+    if (Object.keys(questions).length < 6) {
         alert("Моля, добавете поне 6 въпроса в Админ панела!");
         return;
     }
@@ -86,7 +76,7 @@ createRoomBtn.onclick = () => {
     db.ref('rooms/' + roomID).set({
         status: 'waiting',
         currentTIdx: -1,
-        currentQIdx: -1,
+        currentQKey: null,
         p1Ready: false, p2Ready: false,
         p1Correct: false, p2Correct: false,
         p1Time: 999, p2Time: 999,
@@ -102,7 +92,6 @@ function initGame() {
     setupContainer.style.display = "none";
     updateTerritoryUI();
     if (myRole === 'player1') {
-        shuffleArray(questions); // Разбъркваме въпросите само веднъж в началото
         currentTIdx = 0;
         nextBattle();
     }
@@ -117,19 +106,22 @@ function nextBattle() {
         return;
     }
 
-    // Взимаме въпросите подред от вече разбъркания масив
-    const qIdx = currentTIdx % questions.length; 
+    // Взимаме всички уникални ключове (ID-та) на въпросите от базата
+    const qKeys = Object.keys(questions);
+    
+    // Избираме въпрос ПОСЛЕДОВАТЕЛНО по индекс
+    const selectedKey = qKeys[currentTIdx % qKeys.length];
 
     db.ref('rooms/' + roomID).update({
         currentTIdx: currentTIdx,
-        currentQIdx: qIdx,
+        currentQKey: selectedKey, // Изпращаме точното ID на въпроса
         p1Ready: false, 
         p2Ready: false,
         p1Correct: false, 
         p2Correct: false,
         p1Time: 999, 
         p2Time: 999,
-        battleResolved: false // Нулираме флага за нов рунд
+        battleResolved: false
     });
 }
 
@@ -143,14 +135,17 @@ function listenForUpdates() {
             return;
         }
 
-        // Следене за нов въпрос
-        if (data.currentQIdx !== -1 && data.currentQIdx !== currentQIndex) {
-            currentQIndex = data.currentQIdx;
+        // Проверяваме дали има ново ID на въпрос в базата
+        if (data.currentQKey && data.currentQKey !== currentQID) {
+            currentQID = data.currentQKey; // Обновяваме локалното ID
             currentTIdx = data.currentTIdx;
-            showQuestion(questions[currentQIndex]);
+            
+            // Взимаме въпроса директно по неговото ID
+            const questionData = questions[data.currentQKey];
+            showQuestion(questionData);
         }
 
-        // Когато и двамата са готови - изчисляваме победител
+        // Синхронизация на отговорите
         if (data.p1Ready && data.p2Ready && !data.battleResolved) {
             clearInterval(timerInterval);
             resolveBattle(data);
@@ -216,7 +211,6 @@ function resolveBattle(data) {
     const t = TERRITORIES[currentTIdx];
     if (!t || data.battleResolved) return; 
 
-    // Веднага маркираме като обработено в базата, за да не забие
     db.ref('rooms/' + roomID).update({ battleResolved: true });
 
     let winner = null;
@@ -278,7 +272,7 @@ function showFinalResults() {
     document.getElementById("restartBtn").onclick = () => window.location.href = "quiz.html";
 }
 
-// ====== АДМИН ПАНЕЛ ======
+// ====== АДМИН ПАНЕЛ (Запазва се същия) ======
 const adminModal = document.getElementById("adminModal");
 const adminArea = document.getElementById("adminArea");
 
