@@ -23,11 +23,11 @@ const TERRITORIES = [
     { name: "Център", points: 180, owner: null }
 ];
 
-let questions = {}; // Вече е обект, за да пазим ID-тата (ключовете)
+let questions = {}; 
 let roomID = new URLSearchParams(window.location.search).get('room');
 let myRole = roomID ? 'player2' : 'player1';
 let currentTIdx = -1;
-let currentQID = null; // Пазим ID-то на текущия въпрос
+let currentQID = null; 
 let myScore = 0, oppScore = 0;
 let myZones = 0, oppZones = 0;
 let timerInterval, startTime, timeLeft = 15;
@@ -45,7 +45,7 @@ function loadQuestionsFromDB(callback) {
     db.ref('shared_questions').on('value', (snapshot) => {
         const data = snapshot.val();
         if (data) {
-            questions = data; // Пазим оригиналния обект с ключовете
+            questions = data; 
         }
         if (callback) callback();
     });
@@ -54,6 +54,7 @@ function loadQuestionsFromDB(callback) {
 // ====== ИНИЦИАЛИЗАЦИЯ ======
 loadQuestionsFromDB(() => {
     if (roomID) {
+        // Player 2 влиза тук
         setupContainer.innerHTML = "<h3>Свързване към играта...</h3>";
         db.ref('rooms/' + roomID).update({ status: 'playing' });
         initGame();
@@ -61,7 +62,8 @@ loadQuestionsFromDB(() => {
 });
 
 createRoomBtn.onclick = () => {
-    if (Object.keys(questions).length < 6) {
+    const qKeys = Object.keys(questions);
+    if (qKeys.length < 6) {
         alert("Моля, добавете поне 6 въпроса в Админ панела!");
         return;
     }
@@ -70,9 +72,10 @@ createRoomBtn.onclick = () => {
     
     document.getElementById("qrcode").innerHTML = "";
     new QRCode(document.getElementById("qrcode"), url);
-    document.getElementById("setup-msg").innerHTML = `<b>Стаята е създадена!</b><br>Сканирайте QR кода.`;
+    document.getElementById("setup-msg").innerHTML = `<b>Стаята е създадена!</b><br>Сканирайте QR кода с второто устройство.`;
     createRoomBtn.style.display = "none";
 
+    // Player 1 създава стаята и чака статус 'playing'
     db.ref('rooms/' + roomID).set({
         status: 'waiting',
         currentTIdx: -1,
@@ -84,18 +87,24 @@ createRoomBtn.onclick = () => {
     });
 
     db.ref('rooms/' + roomID + '/status').on('value', (snap) => {
-        if (snap.val() === 'playing') initGame();
+        if (snap.val() === 'playing') {
+            initGame();
+        }
     });
 };
 
 function initGame() {
     setupContainer.style.display = "none";
     updateTerritoryUI();
+    listenForUpdates(); 
+
     if (myRole === 'player1') {
-        currentTIdx = 0;
-        nextBattle();
+        // Малка пауза, за да е сигурно, че Player 2 е заредил всичко
+        setTimeout(() => {
+            currentTIdx = 0;
+            nextBattle();
+        }, 2000);
     }
-    listenForUpdates();
 }
 
 // ====== ЛОГИКА НА БИТКАТА ======
@@ -106,15 +115,12 @@ function nextBattle() {
         return;
     }
 
-    // Взимаме всички уникални ключове (ID-та) на въпросите от базата
     const qKeys = Object.keys(questions);
-    
-    // Избираме въпрос ПОСЛЕДОВАТЕЛНО по индекс
     const selectedKey = qKeys[currentTIdx % qKeys.length];
 
     db.ref('rooms/' + roomID).update({
         currentTIdx: currentTIdx,
-        currentQKey: selectedKey, // Изпращаме точното ID на въпроса
+        currentQKey: selectedKey, 
         p1Ready: false, 
         p2Ready: false,
         p1Correct: false, 
@@ -135,17 +141,18 @@ function listenForUpdates() {
             return;
         }
 
-        // Проверяваме дали има ново ID на въпрос в базата
+        // Синхронно зареждане на въпрос
         if (data.currentQKey && data.currentQKey !== currentQID) {
-            currentQID = data.currentQKey; // Обновяваме локалното ID
+            currentQID = data.currentQKey; 
             currentTIdx = data.currentTIdx;
             
-            // Взимаме въпроса директно по неговото ID
             const questionData = questions[data.currentQKey];
-            showQuestion(questionData);
+            if (questionData) {
+                showQuestion(questionData);
+            }
         }
 
-        // Синхронизация на отговорите
+        // Проверка дали и двамата са отговорили
         if (data.p1Ready && data.p2Ready && !data.battleResolved) {
             clearInterval(timerInterval);
             resolveBattle(data);
@@ -272,7 +279,7 @@ function showFinalResults() {
     document.getElementById("restartBtn").onclick = () => window.location.href = "quiz.html";
 }
 
-// ====== АДМИН ПАНЕЛ (Запазва се същия) ======
+// ====== АДМИН ПАНЕЛ ======
 const adminModal = document.getElementById("adminModal");
 const adminArea = document.getElementById("adminArea");
 
