@@ -40,6 +40,16 @@ const setupContainer = document.getElementById("setup-container");
 const createRoomBtn = document.getElementById("createRoomBtn");
 const territoryStatus = document.getElementById("territoryStatus");
 
+// ====== ПОМОЩНИ ФУНКЦИИ ======
+
+// Разбъркване на масив (Fisher-Yates Shuffle) за предотвратяване на повторения
+function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+}
+
 // ====== ЗАРЕЖДАНЕ НА ВЪПРОСИ ОТ ОБЛАКА ======
 function loadQuestionsFromDB(callback) {
     db.ref('shared_questions').on('value', (snapshot) => {
@@ -62,7 +72,7 @@ loadQuestionsFromDB(() => {
 
 createRoomBtn.onclick = () => {
     if (questions.length < 6) {
-        alert("Моля, добавете поне 6 въпроса в Админ панела (по един за всяка територия)!");
+        alert("Моля, добавете поне 6 въпроса в Админ панела!");
         return;
     }
     roomID = "room_" + Math.random().toString(36).substr(2, 6);
@@ -79,7 +89,8 @@ createRoomBtn.onclick = () => {
         currentQIdx: -1,
         p1Ready: false, p2Ready: false,
         p1Correct: false, p2Correct: false,
-        p1Time: 999, p2Time: 999
+        p1Time: 999, p2Time: 999,
+        battleResolved: false
     });
 
     db.ref('rooms/' + roomID + '/status').on('value', (snap) => {
@@ -91,6 +102,7 @@ function initGame() {
     setupContainer.style.display = "none";
     updateTerritoryUI();
     if (myRole === 'player1') {
+        shuffleArray(questions); // Разбъркваме въпросите само веднъж в началото
         currentTIdx = 0;
         nextBattle();
     }
@@ -105,9 +117,9 @@ function nextBattle() {
         return;
     }
 
-    const qIdx = Math.floor(Math.random() * questions.length);
-    
-    // Пълно нулиране на състоянието в Firebase за новия рунд
+    // Взимаме въпросите подред от вече разбъркания масив
+    const qIdx = currentTIdx % questions.length; 
+
     db.ref('rooms/' + roomID).update({
         currentTIdx: currentTIdx,
         currentQIdx: qIdx,
@@ -116,7 +128,8 @@ function nextBattle() {
         p1Correct: false, 
         p2Correct: false,
         p1Time: 999, 
-        p2Time: 999
+        p2Time: 999,
+        battleResolved: false // Нулираме флага за нов рунд
     });
 }
 
@@ -138,8 +151,7 @@ function listenForUpdates() {
         }
 
         // Когато и двамата са готови - изчисляваме победител
-        if (data.p1Ready && data.p2Ready) {
-            // Спираме таймера веднага, за да не се задейства handleAnswer(-1)
+        if (data.p1Ready && data.p2Ready && !data.battleResolved) {
             clearInterval(timerInterval);
             resolveBattle(data);
         }
@@ -202,7 +214,10 @@ function handleAnswer(idx, correct) {
 
 function resolveBattle(data) {
     const t = TERRITORIES[currentTIdx];
-    if (!t || t.owner) return; // Предотвратяваме повторно изчисляване
+    if (!t || data.battleResolved) return; 
+
+    // Веднага маркираме като обработено в базата, за да не забие
+    db.ref('rooms/' + roomID).update({ battleResolved: true });
 
     let winner = null;
     if (data.p1Correct && data.p2Correct) {
@@ -223,12 +238,11 @@ function resolveBattle(data) {
     updateTerritoryUI();
     document.getElementById("scoreVal").textContent = `Вие: ${myScore} | Опонент: ${oppScore}`;
 
-    // Player 1 контролира времето за следващия въпрос
     if (myRole === 'player1') {
         setTimeout(() => {
             currentTIdx++;
             nextBattle();
-        }, 3000); // 3 секунди пауза за разглеждане на резултата
+        }, 3000); 
     }
 }
 
